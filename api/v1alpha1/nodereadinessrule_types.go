@@ -107,7 +107,8 @@ type NodeReadinessRuleSpec struct {
 }
 
 // ConditionRequirement defines a specific Node condition and the status value
-// required to trigger the controller's action.
+// required to trigger the controller's action. It also contains an optional
+// default status value.
 type ConditionRequirement struct {
 	// type of Node condition
 	//
@@ -123,6 +124,17 @@ type ConditionRequirement struct {
 	// +required
 	// +kubebuilder:validation:Enum=True;False;Unknown
 	RequiredStatus corev1.ConditionStatus `json:"requiredStatus,omitempty"`
+
+	// defaultStatus is the status a condition is evaluated to if the condition
+	// is not found in a node.
+	//
+	// Accepted values True, False, Unknown. It is optional.
+	// If no value is provided, then Unknown becomes the default value.
+	//
+	// +optional
+	// +kubebuilder:default="Unknown"
+	// +kubebuilder:validation:Enum=True;False;Unknown
+	DefaultStatus corev1.ConditionStatus `json:"defaultStatus,omitempty"`
 }
 
 // NodeReadinessRuleStatus defines the observed state of NodeReadinessRule.

@@ -846,15 +846,15 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 			}
 
 			// Test condition exists and matches
-			status := readinessController.getConditionStatus(node, "Ready")
+			status, _ := readinessController.getConditionStatus(node, "Ready", "Unknown")
 			Expect(status).To(Equal(corev1.ConditionTrue))
 
 			// Test condition exists but doesn't match
-			status = readinessController.getConditionStatus(node, "NetworkReady")
+			status, _ = readinessController.getConditionStatus(node, "NetworkReady", "Unknown")
 			Expect(status).To(Equal(corev1.ConditionFalse))
 
 			// Test missing condition
-			status = readinessController.getConditionStatus(node, "StorageReady")
+			status, _ = readinessController.getConditionStatus(node, "StorageReady", "Unknown")
 			Expect(status).To(Equal(corev1.ConditionUnknown))
 		})
 
