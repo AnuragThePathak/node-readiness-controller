@@ -298,7 +298,7 @@ func (r *RuleReadinessController) evaluateRuleForNode(ctx context.Context, rule 
 	conditionResults := make([]readinessv1alpha1.ConditionEvaluationResult, 0, len(rule.Spec.Conditions))
 
 	for _, condReq := range rule.Spec.Conditions {
-		currentStatus, _ := r.getConditionStatus(node, condReq.Type, condReq.DefaultStatus)
+		currentStatus, _ := r.getConditionStatus(node, condReq.Type, condReq.GetDefaultStatus())
 		satisfied := currentStatus == condReq.RequiredStatus
 
 		if !satisfied {
@@ -519,7 +519,7 @@ func (r *RuleReadinessController) processDryRun(ctx context.Context, rule *readi
 			currentStatus, conditionFound := r.getConditionStatus(
 				&node,
 				condReq.Type,
-				condReq.DefaultStatus,
+				condReq.GetDefaultStatus(),
 			)
 			if !conditionFound {
 				missingConditions++
