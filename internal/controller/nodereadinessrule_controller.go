@@ -298,8 +298,19 @@ func (r *RuleReadinessController) evaluateRuleForNode(ctx context.Context, rule 
 	conditionResults := make([]readinessv1alpha1.ConditionEvaluationResult, 0, len(rule.Spec.Conditions))
 
 	for _, condReq := range rule.Spec.Conditions {
-		currentStatus, _ := r.getConditionStatus(node, condReq.Type, condReq.GetDefaultStatus())
-		satisfied := currentStatus == condReq.RequiredStatus
+		effectiveStatus, conditionFound := r.getConditionStatus(
+			node,
+			condReq.Type,
+			condReq.GetDefaultStatus(),
+		)
+		satisfied := effectiveStatus == condReq.RequiredStatus
+
+		// observedStatus is the condition status of a node without applying the default
+		// fallback in case the condition is not found.
+		observedStatus := effectiveStatus
+		if !conditionFound {
+			observedStatus = corev1.ConditionUnknown
+		}
 
 		if !satisfied {
 			allConditionsSatisfied = false
@@ -307,12 +318,13 @@ func (r *RuleReadinessController) evaluateRuleForNode(ctx context.Context, rule 
 
 		conditionResults = append(conditionResults, readinessv1alpha1.ConditionEvaluationResult{
 			Type:           condReq.Type,
-			CurrentStatus:  currentStatus,
+			CurrentStatus:  observedStatus,
 			RequiredStatus: condReq.RequiredStatus,
+			DefaultStatus:  condReq.GetDefaultStatus(),
 		})
 
 		log.V(1).Info("Condition evaluation", "node", node.Name, "rule", rule.Name,
-			"conditionType", condReq.Type, "current", currentStatus, "required", condReq.RequiredStatus,
+			"conditionType", condReq.Type, "current", observedStatus, "required", condReq.RequiredStatus,
 			"satisfied", satisfied)
 	}
 

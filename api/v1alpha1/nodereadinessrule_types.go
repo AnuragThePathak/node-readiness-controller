@@ -267,6 +267,14 @@ type ConditionEvaluationResult struct {
 	// +required
 	// +kubebuilder:validation:Enum=True;False;Unknown
 	RequiredStatus corev1.ConditionStatus `json:"requiredStatus,omitempty"`
+
+	// defaultStatus is the status a condition is evaluated to if the condition
+	// is not found in a node. Reflects the defaultStatus configured in the rule
+	// spec.
+	//
+	// +optional
+	// +kubebuilder:validation:Enum=True;False;Unknown
+	DefaultStatus corev1.ConditionStatus `json:"defaultStatus,omitempty"`
 }
 
 // DryRunResults provides a summary of the actions the controller would perform if DryRun mode is enabled.

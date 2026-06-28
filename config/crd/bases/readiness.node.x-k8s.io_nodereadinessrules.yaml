@@ -377,6 +377,16 @@ spec:
                             - "False"
                             - Unknown
                             type: string
+                          defaultStatus:
+                            description: |-
+                              defaultStatus is the status a condition is evaluated to if the condition
+                              is not found in a node. Reflects the defaultStatus configured in the rule
+                              spec.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
                           requiredStatus:
                             description: requiredStatus is the status value defined
                               in the rule that must be matched, one of True, False,
