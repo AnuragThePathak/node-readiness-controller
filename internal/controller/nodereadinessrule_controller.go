@@ -324,7 +324,8 @@ func (r *RuleReadinessController) evaluateRuleForNode(ctx context.Context, rule 
 		})
 
 		log.V(1).Info("Condition evaluation", "node", node.Name, "rule", rule.Name,
-			"conditionType", condReq.Type, "current", observedStatus, "required", condReq.RequiredStatus,
+			"conditionType", condReq.Type, "observed", observedStatus,
+			"effective", effectiveStatus, "required", condReq.RequiredStatus,
 			"satisfied", satisfied)
 	}
 
