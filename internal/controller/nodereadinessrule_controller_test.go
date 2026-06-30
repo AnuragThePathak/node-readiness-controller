@@ -567,6 +567,103 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 			}, time.Second*5).Should(ContainSubstring("missing conditions"))
 		})
 
+		It("should count riskyOps and taintsToRemove when absent condition is satisfied via defaultStatus", func() {
+			// Absent condition + defaultStatus:False + requiredStatus:False:
+			// conditionFound=false → missingConditions++ → riskyOps++ (condition absent = risky)
+			// effectiveStatus=False == requiredStatus=False → allConditionsSatisfied=true
+			// node already has the taint → taintsToRemove++
+			const (
+				nodeName = "dry-run-default-status-node"
+				ruleName = "dry-run-default-status-rule"
+				labelKey = "env"
+				labelVal = "default-status-dry-run"
+				taintKey = "readiness.k8s.io/maintenance"
+			)
+
+			testNode := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   nodeName,
+					Labels: map[string]string{labelKey: labelVal},
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{Key: taintKey, Effect: corev1.TaintEffectNoSchedule},
+					},
+				},
+				// Intentionally NO Status.Conditions — MaintenanceRequired is absent.
+			}
+			Expect(k8sClient.Create(ctx, testNode)).To(Succeed())
+			defer func() { _ = k8sClient.Delete(ctx, testNode) }()
+
+			rule := &nodereadinessiov1alpha1.NodeReadinessRule{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       ruleName,
+					Finalizers: []string{finalizerName},
+				},
+				Spec: nodereadinessiov1alpha1.NodeReadinessRuleSpec{
+					DryRun: true,
+					NodeSelector: metav1.LabelSelector{
+						MatchLabels: map[string]string{labelKey: labelVal},
+					},
+					Conditions: []nodereadinessiov1alpha1.ConditionRequirement{
+						{
+							Type:           "MaintenanceRequired",
+							RequiredStatus: corev1.ConditionFalse,
+							DefaultStatus:  corev1.ConditionFalse, // absent → False → satisfied, but still risky
+						},
+					},
+					Taint: corev1.Taint{
+						Key:    taintKey,
+						Effect: corev1.TaintEffectNoSchedule,
+					},
+					EnforcementMode: nodereadinessiov1alpha1.EnforcementModeContinuous,
+				},
+			}
+			Expect(k8sClient.Create(ctx, rule)).To(Succeed())
+			defer func() { _ = k8sClient.Delete(ctx, rule) }()
+
+			_, err := ruleReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: ruleName},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Absent condition is always risky even if the default satisfies the rule.
+			Eventually(func() *int32 {
+				updated := &nodereadinessiov1alpha1.NodeReadinessRule{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: ruleName}, updated); err != nil {
+					return nil
+				}
+				return updated.Status.DryRunResults.RiskyOperations
+			}, time.Second*5).Should(SatisfyAll(
+				Not(BeNil()),
+				HaveValue(BeNumerically(">=", int32(1))),
+			))
+
+			// Condition is satisfied via default → taint would be removed.
+			Eventually(func() *int32 {
+				updated := &nodereadinessiov1alpha1.NodeReadinessRule{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: ruleName}, updated); err != nil {
+					return nil
+				}
+				return updated.Status.DryRunResults.TaintsToRemove
+			}, time.Second*5).Should(SatisfyAll(
+				Not(BeNil()),
+				HaveValue(BeNumerically(">=", int32(1))),
+			))
+
+			// Taints to add should remain 0
+			Eventually(func() *int32 {
+				updated := &nodereadinessiov1alpha1.NodeReadinessRule{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: ruleName}, updated); err != nil {
+					return nil
+				}
+				return updated.Status.DryRunResults.TaintsToAdd
+			}, time.Second*5).Should(SatisfyAll(
+				Not(BeNil()),
+				HaveValue(BeNumerically("==", int32(0))),
+			))
+		})
+
 		It("should not count a node that does not match the selector", func() {
 			// Node exists but its labels do NOT match the rule's NodeSelector → continue (skip)
 			// affectedNodes should be 0; all counters 0; summary "No changes needed"
@@ -758,6 +855,108 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 				}, BeNumerically(">=", int32(1))),
 			))
 		})
+
+		It(
+			"should satisfy a rule when an absent condition matches via defaultStatus (problem-gate scenario)",
+			func() {
+				// Scenario: NPD-style gate — taint is added when a problem condition fires.
+				// When the condition is completely absent (node just bootstrapped, NPD hasn't
+				// written it yet), defaultStatus:False makes it satisfy requiredStatus:False
+				// and the taint should NOT be added (or be removed if pre-existing).
+				const (
+					nodeName = "default-status-gate-node"
+					ruleName = "default-status-gate-rule"
+					labelKey = "app"
+					labelVal = "default-status-test"
+					taintKey = "readiness.k8s.io/problem-gate"
+				)
+
+				node := &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   nodeName,
+						Labels: map[string]string{labelKey: labelVal},
+						// Pre-add the taint so we can observe it being removed.
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							{Key: taintKey, Effect: corev1.TaintEffectNoSchedule},
+						},
+					},
+					// Intentionally NO Status.Conditions — MaintenanceRequired is absent.
+				}
+				Expect(k8sClient.Create(ctx, node)).To(Succeed())
+				defer func() { _ = k8sClient.Delete(ctx, node) }()
+
+				rule := &nodereadinessiov1alpha1.NodeReadinessRule{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       ruleName,
+						Finalizers: []string{finalizerName},
+					},
+					Spec: nodereadinessiov1alpha1.NodeReadinessRuleSpec{
+						NodeSelector: metav1.LabelSelector{
+							MatchLabels: map[string]string{labelKey: labelVal},
+						},
+						Conditions: []nodereadinessiov1alpha1.ConditionRequirement{
+							{
+								Type:           "MaintenanceRequired",
+								RequiredStatus: corev1.ConditionFalse,
+								DefaultStatus:  corev1.ConditionFalse, // absent → treated as False → satisfied
+							},
+						},
+						Taint: corev1.Taint{
+							Key:    taintKey,
+							Effect: corev1.TaintEffectNoSchedule,
+						},
+						EnforcementMode: nodereadinessiov1alpha1.EnforcementModeContinuous,
+					},
+				}
+				Expect(k8sClient.Create(ctx, rule)).To(Succeed())
+				defer func() { _ = k8sClient.Delete(ctx, rule) }()
+
+				_, err := ruleReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: ruleName},
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				// The pre-existing taint should be removed because the absent condition
+				// is satisfied via defaultStatus:False.
+				Eventually(func() bool {
+					updatedNode := &corev1.Node{}
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, updatedNode); err != nil {
+						return true // assume taint still there on error
+					}
+					for _, taint := range updatedNode.Spec.Taints {
+						if taint.Key == taintKey {
+							return true
+						}
+					}
+					return false
+				}, time.Second*5).Should(BeFalse(), "taint should be removed when absent condition satisfies via defaultStatus")
+
+				// Validate that CurrentStatus is Unknown (observed status), RequiredStatus is False, and DefaultStatus is False.
+				Eventually(func() nodereadinessiov1alpha1.ConditionEvaluationResult {
+					updatedRule := &nodereadinessiov1alpha1.NodeReadinessRule{}
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: ruleName}, updatedRule); err != nil {
+						return nodereadinessiov1alpha1.ConditionEvaluationResult{}
+					}
+					for _, ne := range updatedRule.Status.NodeEvaluations {
+						if ne.NodeName == nodeName && len(ne.ConditionResults) > 0 {
+							return ne.ConditionResults[0]
+						}
+					}
+					return nodereadinessiov1alpha1.ConditionEvaluationResult{}
+				}, time.Second*5).Should(SatisfyAll(
+					WithTransform(func(r nodereadinessiov1alpha1.ConditionEvaluationResult) corev1.ConditionStatus {
+						return r.CurrentStatus
+					}, Equal(corev1.ConditionUnknown)),
+					WithTransform(func(r nodereadinessiov1alpha1.ConditionEvaluationResult) corev1.ConditionStatus {
+						return r.RequiredStatus
+					}, Equal(corev1.ConditionFalse)),
+					WithTransform(func(r nodereadinessiov1alpha1.ConditionEvaluationResult) corev1.ConditionStatus {
+						return r.DefaultStatus
+					}, Equal(corev1.ConditionFalse)),
+				))
+			})
 	})
 
 	Context("Node Processing", func() {
