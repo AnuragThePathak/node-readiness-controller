@@ -503,22 +503,17 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 			))
 		})
 
-		It("should count riskyOps when a condition status is Unknown", func() {
-			// Node matches selector; condition status is Unknown → missingConditions++ → riskyOps++
-			// Unknown also means condition is not satisfied → taintsToAdd++ too (no pre-existing taint)
+		It("should count riskyOps when a condition is missing from a node", func() {
+			// Node matches selector but has NO Ready condition at all → conditionFound=false
+			// → missingConditions++ → riskyOps++
+			// Condition not found falls back to GetDefaultStatus() (Unknown), which doesn't
+			// satisfy RequiredStatus=True → taintsToAdd++ as well (no pre-existing taint)
 			testNode := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "dry-run-risky-node",
 					Labels: map[string]string{"env": "risky-test"},
 				},
-				Status: corev1.NodeStatus{
-					Conditions: []corev1.NodeCondition{
-						{
-							Type:   "Ready",
-							Status: corev1.ConditionUnknown, // triggers missingConditions++
-						},
-					},
-				},
+				// Intentionally no Status.Conditions — the Ready condition is absent
 			}
 			Expect(k8sClient.Create(ctx, testNode)).To(Succeed())
 			defer func() { _ = k8sClient.Delete(ctx, testNode) }()
@@ -683,11 +678,8 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 					Name:   "dry-run-multi-risky",
 					Labels: map[string]string{"env": "multi-test"},
 				},
-				Status: corev1.NodeStatus{
-					Conditions: []corev1.NodeCondition{
-						{Type: "Ready", Status: corev1.ConditionUnknown}, // risky branch
-					},
-				},
+				// Intentionally no Status.Conditions — the Ready condition is absent,
+				// making this a genuinely missing condition (riskyOps branch)
 			}
 			nodeSkip := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
@@ -846,16 +838,33 @@ var _ = Describe("NodeReadinessRule Controller", func() {
 			}
 
 			// Test condition exists and matches
-			status, _ := readinessController.getConditionStatus(node, "Ready", "Unknown")
+			status, ok := readinessController.getConditionStatus(
+				node, "Ready", corev1.ConditionUnknown,
+			)
 			Expect(status).To(Equal(corev1.ConditionTrue))
+			Expect(ok).To(BeTrue())
 
 			// Test condition exists but doesn't match
-			status, _ = readinessController.getConditionStatus(node, "NetworkReady", "Unknown")
+			status, ok = readinessController.getConditionStatus(
+				node, "NetworkReady", corev1.ConditionUnknown,
+			)
 			Expect(status).To(Equal(corev1.ConditionFalse))
+			Expect(ok).To(BeTrue())
 
 			// Test missing condition
-			status, _ = readinessController.getConditionStatus(node, "StorageReady", "Unknown")
+			status, ok = readinessController.getConditionStatus(
+				node, "StorageReady", corev1.ConditionUnknown,
+			)
 			Expect(status).To(Equal(corev1.ConditionUnknown))
+			Expect(ok).To(BeFalse())
+
+			// Test missing condition with a non-Unknown default — condition is absent so
+			// conditionFound=false, but the returned status equals the supplied default.
+			status, ok = readinessController.getConditionStatus(
+				node, "NewCondition", corev1.ConditionTrue,
+			)
+			Expect(status).To(Equal(corev1.ConditionTrue))
+			Expect(ok).To(BeFalse())
 		})
 
 		It("should detect taints correctly", func() {
