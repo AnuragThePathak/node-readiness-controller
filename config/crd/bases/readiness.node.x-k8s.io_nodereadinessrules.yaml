@@ -81,6 +81,8 @@ spec:
                         Accepted values are True, False, Unknown. It is optional.
                         When omitted, the effective default is Unknown, applied transparently by
                         the controller at evaluation time.
+
+                        Note: This field must not be set when enforcementMode is bootstrap-only.
                       enum:
                       - "True"
                       - "False"
