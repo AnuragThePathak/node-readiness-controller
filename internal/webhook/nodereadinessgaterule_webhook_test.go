@@ -64,7 +64,7 @@ var _ = Describe("NodeReadinessRule Validation Webhook", func() {
 				},
 			}
 
-			allErrs := webhook.validateSpec(rule.Spec)
+			allErrs := webhook.validateSpec(rule.Spec, false)
 			Expect(allErrs).To(HaveLen(1))
 			Expect(allErrs[0].Field).To(Equal("spec.nodeSelector"))
 		})
@@ -80,7 +80,7 @@ var _ = Describe("NodeReadinessRule Validation Webhook", func() {
 				},
 			}
 
-			allErrs := webhook.validateSpec(rule.Spec)
+			allErrs := webhook.validateSpec(rule.Spec, false)
 			Expect(allErrs).To(BeEmpty())
 		})
 
@@ -99,7 +99,7 @@ var _ = Describe("NodeReadinessRule Validation Webhook", func() {
 					},
 				}
 
-				allErrs := webhook.validateSpec(rule.Spec)
+				allErrs := webhook.validateSpec(rule.Spec, false)
 				Expect(allErrs).To(HaveLen(1))
 				Expect(allErrs[0].Field).To(Equal("spec.nodeSelector"))
 				Expect(allErrs[0].Type).To(Equal(field.ErrorTypeRequired))
@@ -123,7 +123,7 @@ var _ = Describe("NodeReadinessRule Validation Webhook", func() {
 					},
 				}
 
-				allErrs := webhook.validateSpec(rule.Spec)
+				allErrs := webhook.validateSpec(rule.Spec, false)
 				Expect(allErrs).To(HaveLen(1))
 				Expect(allErrs[0].Field).To(Equal("spec.nodeSelector"))
 				Expect(allErrs[0].Type).To(Equal(field.ErrorTypeInvalid))
@@ -151,7 +151,7 @@ var _ = Describe("NodeReadinessRule Validation Webhook", func() {
 				},
 			}
 
-			allErrs := webhook.validateSpec(rule.Spec)
+			allErrs := webhook.validateSpec(rule.Spec, false)
 			Expect(allErrs).To(BeEmpty())
 		})
 	})
