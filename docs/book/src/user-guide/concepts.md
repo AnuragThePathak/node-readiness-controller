@@ -40,12 +40,12 @@ By setting `requiredStatus: False` and `defaultStatus: False`, an absent `Mainte
 #### Important Implication: Enforcement Modes
 The choice of `defaultStatus` has critical interaction with the rule's `enforcementMode`:
 
-> [!WARNING]
-> **Do not use a satisfying `defaultStatus` with `bootstrap-only` rules.**
-> 
-> If a rule is `bootstrap-only` and the absent condition evaluates to a status that matches `requiredStatus` (e.g. `requiredStatus: False` and `defaultStatus: False`), the controller will immediately mark the bootstrap as completed (`bootstrap-completed-<ruleName>=true`) and remove the taint. 
-> 
-> Since `bootstrap-only` rules are never re-evaluated once marked complete, the gate is permanently bypassed, even if a reporter eventually updates the condition to an unsatisfied status. For `bootstrap-only` rules, leaving the default status as `Unknown` is almost always the correct approach to guarantee the controller waits for the actual condition to be reported.
+> [!IMPORTANT]
+> **`defaultStatus` is not supported with `bootstrap-only` rules.**
+>
+> There is no valid use case found so far for this combination. `defaultStatus` is useful when a condition may never appear on a node — but `bootstrap-only` mode exists precisely to *wait* for conditions to be explicitly reported before completing the bootstrap gate. The two features work against each other.
+>
+> Depending on your configuration, using them together either prevents the bootstrap from completing indefinitely (because all the conditions have always been satisfied) or lets the bootstrap gate pass for a condition that was never actually verified on the node. The admission webhook rejects any such combination.
 
 ## Enforcement Modes
 

@@ -49,7 +49,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `type` _string_ | type of Node condition<br />Following kubebuilder validation is referred from https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition |  | MaxLength: 316 <br />MinLength: 1 <br /> |
 | `requiredStatus` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#conditionstatus-v1-core)_ | requiredStatus is status of the condition, one of True, False, Unknown. |  | Enum: [True False Unknown] <br /> |
-| `defaultStatus` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#conditionstatus-v1-core)_ | defaultStatus is the fallback status assumed when the condition is completely missing from the Node's status. | Unknown | Enum: [True False Unknown] <br /> |
+| `defaultStatus` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#conditionstatus-v1-core)_ | defaultStatus is the fallback status assumed when the condition is completely missing from the Node's status. <br /><br />Note: This field must not be set when enforcementMode is bootstrap-only. | Unknown | Enum: [True False Unknown] <br /> |
 
 
 #### DryRunResults
