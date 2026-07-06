@@ -43,9 +43,15 @@ The choice of `defaultStatus` has critical interaction with the rule's `enforcem
 > [!IMPORTANT]
 > **`defaultStatus` is not supported with `bootstrap-only` rules.**
 >
-> There is no valid use case found so far for this combination. `defaultStatus` is useful when a condition may never appear on a node — but `bootstrap-only` mode exists precisely to *wait* for conditions to be explicitly reported before completing the bootstrap gate. The two features work against each other.
+> There is no valid use case found so far for this combination. `defaultStatus` is useful when a condition may never appear on a node in its healthy state — effectively treating its absence as a known-good signal. But `bootstrap-only` mode exists precisely to *wait* for conditions to be explicitly reported before completing the bootstrap gate. The two features work against each other.
 >
-> Depending on your configuration, using them together either prevents the bootstrap from completing indefinitely (because all the conditions have always been satisfied) or lets the bootstrap gate pass for a condition that was never actually verified on the node. The admission webhook rejects any such combination.
+> Depending on your configuration, combining them breaks the state machine in one of two ways:
+>
+> **Premature Completion:** The absent condition evaluates as satisfied via `defaultStatus`, allowing the bootstrap gate to pass without the condition ever being actually verified.
+>
+> **Infinite Hang:** If the node was never registered with the taint ([as prescribed here](./getting-started.md#4-configure-the-taint)), `defaultStatus` keeps the condition satisfied, meaning no taint removal will ever trigger to mark the bootstrap as complete.
+>
+> To prevent these invalid states, the admission webhook explicitly rejects this combination.
 
 ## Enforcement Modes
 
