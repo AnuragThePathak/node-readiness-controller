@@ -132,6 +132,8 @@ type ConditionRequirement struct {
 	// When omitted, the effective default is Unknown, applied transparently by
 	// the controller at evaluation time.
 	//
+	// Note: This field must not be set when enforcementMode is bootstrap-only.
+	//
 	// +optional
 	// +kubebuilder:validation:Enum=True;False;Unknown
 	DefaultStatus corev1.ConditionStatus `json:"defaultStatus,omitempty"` // Use GetDefaultStatus() for safe access; field may be empty even when a default applies.
